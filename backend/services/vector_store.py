@@ -1,0 +1,132 @@
+import os
+from typing import Dict, Any, Optional, List
+import faiss
+import numpy as np
+from openai import OpenAI
+import json
+import pickle
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+class VectorStore:
+    def __init__(self):
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.embedding_model = "text-embedding-ada-002"
+        self.dimension = 1536  # OpenAI embedding dimension
+        
+        # Initialize or load FAISS index
+        self.index_path = os.getenv("VECTOR_STORE_PATH", "./vector_store")
+        self.metadata_path = f"{self.index_path}_metadata.pkl"
+        
+        if not os.path.exists(self.index_path):
+            os.makedirs(os.path.dirname(self.index_path) or ".", exist_ok=True)
+        
+        self._load_or_create_index()
+        
+    def _load_or_create_index(self):
+        """Load existing index or create new one"""
+        try:
+            if os.path.exists(f"{self.index_path}.index"):
+                self.index = faiss.read_index(f"{self.index_path}.index")
+                with open(self.metadata_path, "rb") as f:
+                    self.metadata = pickle.load(f)
+            else:
+                self.index = faiss.IndexFlatL2(self.dimension)
+                self.metadata = {}
+        except Exception as e:
+            print(f"Error loading index: {e}")
+            self.index = faiss.IndexFlatL2(self.dimension)
+            self.metadata = {}
+    
+    def _save_index(self):
+        """Save index and metadata to disk"""
+        try:
+            faiss.write_index(self.index, f"{self.index_path}.index")
+            with open(self.metadata_path, "wb") as f:
+                pickle.dump(self.metadata, f)
+        except Exception as e:
+            print(f"Error saving index: {e}")
+    
+    def _get_embedding(self, text: str) -> np.ndarray:
+        """Get embedding for text using OpenAI"""
+        try:
+            response = self.client.embeddings.create(
+                input=text,
+                model=self.embedding_model
+            )
+            return np.array(response.data[0].embedding, dtype=np.float32)
+        except Exception as e:
+            print(f"Error getting embedding: {e}")
+            # Return random embedding as fallback
+            return np.random.rand(self.dimension).astype(np.float32)
+    
+    def store_resume(self, resume_id: str, content: str, metadata: Dict[str, Any]):
+        """Store resume content and metadata in vector store"""
+        
+        # Get embedding for resume content
+        embedding = self._get_embedding(content[:8000])  # Limit content length
+        
+        # Add to FAISS index
+        self.index.add(np.expand_dims(embedding, 0))
+        
+        # Store metadata
+        index_id = self.index.ntotal - 1
+        self.metadata[resume_id] = {
+            "index_id": index_id,
+            "content": content,
+            "metadata": metadata
+        }
+        
+        # Save to disk
+        self._save_index()
+    
+    def get_resume(self, resume_id: str) -> Optional[Dict[str, Any]]:
+        """Get resume by ID"""
+        return self.metadata.get(resume_id)
+    
+    def search_similar(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
+        """Search for similar resumes based on query"""
+        
+        if self.index.ntotal == 0:
+            return []
+        
+        # Get query embedding
+        query_embedding = self._get_embedding(query)
+        
+        # Search in FAISS
+        distances, indices = self.index.search(
+            np.expand_dims(query_embedding, 0), 
+            min(k, self.index.ntotal)
+        )
+        
+        # Get results
+        results = []
+        for idx, distance in zip(indices[0], distances[0]):
+            if idx >= 0:  # Valid index
+                # Find resume by index_id
+                for resume_id, data in self.metadata.items():
+                    if data["index_id"] == idx:
+                        results.append({
+                            "resume_id": resume_id,
+                            "distance": float(distance),
+                            "content": data["content"][:500],  # Preview
+                            "metadata": data["metadata"]
+                        })
+                        break
+        
+        return results
+    
+    def delete_resume(self, resume_id: str):
+        """Delete resume from vector store"""
+        
+        if resume_id in self.metadata:
+            # Note: FAISS doesn't support deletion, so we just remove metadata
+            # In production, you'd want to rebuild the index periodically
+            del self.metadata[resume_id]
+            self._save_index()
+    
+    def get_all_resumes(self) -> List[str]:
+        """Get all resume IDs"""
+        return list(self.metadata.keys()) 
