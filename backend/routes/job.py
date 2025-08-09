@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 import uuid
+import asyncio
 from datetime import datetime
 
 from models.schemas import (
@@ -17,6 +18,20 @@ router = APIRouter()
 # Initialize services
 job_scraper = JobScraper()
 vector_store = VectorStore()
+
+import atexit
+
+# Clean up browser resources on app shutdown
+async def cleanup_scraper():
+    """Clean up scraper resources"""
+    try:
+        await job_scraper.cleanup()
+        print("Job scraper cleaned up successfully")
+    except Exception as e:
+        print(f"Error during scraper cleanup: {e}")
+
+# Register cleanup handler
+atexit.register(lambda: asyncio.create_task(cleanup_scraper()) if hasattr(asyncio, '_running_loop') and asyncio._running_loop else None)
 
 @router.post("/upload", response_model=JobUploadResponse)
 async def upload_job(request: JobUploadRequest):
@@ -165,3 +180,59 @@ async def test_scraper():
         }
     except Exception as e:
         raise HTTPException(500, f"Scraper test failed: {str(e)}")
+
+@router.post("/test-multiple-scrapes")
+async def test_multiple_scrapes(url: str = None):
+    """Test endpoint for multiple consecutive scraping attempts to verify resource management"""
+    
+    if not url:
+        # Use a test LinkedIn URL if none provided
+        url = "https://www.linkedin.com/jobs/view/4107690676/"
+    
+    try:
+        results = []
+        total_attempts = 3
+        
+        print(f"Testing {total_attempts} consecutive scraping attempts...")
+        
+        for attempt in range(total_attempts):
+            print(f"\n--- Attempt {attempt + 1} ---")
+            start_time = asyncio.get_event_loop().time()
+            
+            try:
+                result = await job_scraper.scrape_job(url)
+                end_time = asyncio.get_event_loop().time()
+                
+                results.append({
+                    "attempt": attempt + 1,
+                    "status": "success",
+                    "duration": round(end_time - start_time, 2),
+                    "job_title": result.get("title", "Unknown"),
+                    "company": result.get("company", "Unknown"),
+                    "description_length": len(result.get("description", "")),
+                })
+                print(f"Attempt {attempt + 1} successful in {end_time - start_time:.2f}s")
+                
+            except Exception as e:
+                end_time = asyncio.get_event_loop().time()
+                results.append({
+                    "attempt": attempt + 1,
+                    "status": "failed",
+                    "duration": round(end_time - start_time, 2),
+                    "error": str(e)
+                })
+                print(f"Attempt {attempt + 1} failed: {str(e)}")
+        
+        successful_attempts = len([r for r in results if r["status"] == "success"])
+        
+        return {
+            "status": "completed",
+            "total_attempts": total_attempts,
+            "successful_attempts": successful_attempts,
+            "success_rate": f"{(successful_attempts/total_attempts)*100:.1f}%",
+            "results": results,
+            "message": f"Multiple scraping test completed. {successful_attempts}/{total_attempts} attempts successful."
+        }
+        
+    except Exception as e:
+        raise HTTPException(500, f"Multiple scraping test failed: {str(e)}")

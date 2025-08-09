@@ -4,7 +4,7 @@ An AI-powered interview preparation tool designed for LinkedIn's APB program. Th
 
 ## 🚀 Tech Stack
 
-- **Backend**: FastAPI (Python)
+- **Backend**: FastAPI (Python 3.9-3.11 recommended)
 - **Frontend**: React + Tailwind CSS
 - **AI**: OpenAI GPT-4o
 - **Vector Store**: FAISS for resume embeddings
