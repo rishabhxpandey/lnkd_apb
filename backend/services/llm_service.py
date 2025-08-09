@@ -5,6 +5,8 @@ from openai import OpenAI  # Change to sync client
 import json
 from dotenv import load_dotenv
 import asyncio
+import httpx
+from jinja2 import Environment, FileSystemLoader
 
 # Load environment variables
 load_dotenv()
@@ -14,34 +16,50 @@ class LLMService:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             print("Warning: OPENAI_API_KEY not set. Using fallback mode.")
-        self.client = OpenAI(api_key=api_key) if api_key else None
+        
+        # Create OpenAI client with custom HTTP client to avoid proxy issues
+        if api_key:
+            # Create httpx client without proxy for OpenAI API calls
+            http_client = httpx.Client(
+                proxies=None,  # Explicitly disable proxy for OpenAI
+                trust_env=False  # Don't use environment proxy settings
+            )
+            self.client = OpenAI(
+                api_key=api_key,
+                http_client=http_client
+            )
+        else:
+            self.client = None
         self.model = "gpt-4o-mini"  # Using mini for demo, switch to gpt-4o for production
+        
+        # Setup Jinja2 environment for templates
+        template_dir = os.path.join(os.path.dirname(__file__), '..', 'prompts')
+        self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
     
     async def generate_question(
         self, 
         role: str, 
         resume_context: str = "",
-        question_number: int = 1
+        question_number: int = 1,
+        skills: str = "",
+        job_requirements: str = ""
     ) -> Dict[str, Any]:
         """Generate an interview question based on role and resume"""
         
         if not self.client:
             return self._get_fallback_question(role, question_number)
         
-        system_prompt = f"""You are an expert {role.replace('_', ' ')} interviewer at LinkedIn.
-        Generate thoughtful interview questions that assess both technical skills and cultural fit.
-        Mix behavioral and technical questions appropriately."""
+        # Load and render the Jinja2 template
+        template = self.jinja_env.get_template('base_question.jinja')
+        user_prompt = template.render(
+            role=role,
+            question_number=question_number,
+            resume_context=resume_context,
+            skills=skills,
+            job_requirements=job_requirements
+        )
         
-        user_prompt = f"""Generate interview question #{question_number} for a {role.replace('_', ' ')} candidate.
-        
-        {'Resume context: ' + resume_context[:1000] if resume_context else 'No resume provided.'}
-        
-        Return a JSON object with:
-        - question: The interview question
-        - type: Either "behavioral" or "technical"
-        - difficulty: "easy", "medium", or "hard"
-        - hints: Array of 2-3 hints for answering well
-        """
+        system_prompt = "You are an expert interviewer. Follow the instructions carefully."
         
         try:
             # Use sync client in async context

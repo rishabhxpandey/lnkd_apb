@@ -54,6 +54,32 @@ export const getFeedback = async (sessionId) => {
   return response.data
 }
 
+// Job APIs
+export const uploadJob = async (url) => {
+  const response = await api.post('/job/upload', { url })
+  return response.data
+}
+
+export const getJob = async (jobId) => {
+  const response = await api.get(`/job/${jobId}`)
+  return response.data
+}
+
+export const listJobs = async () => {
+  const response = await api.get('/job/')
+  return response.data
+}
+
+export const searchJobs = async (query, limit = 5) => {
+  const response = await api.post('/job/search', { query, limit })
+  return response.data
+}
+
+export const deleteJob = async (jobId) => {
+  const response = await api.delete(`/job/${jobId}`)
+  return response.data
+}
+
 // Error handling interceptor
 api.interceptors.response.use(
   (response) => response,

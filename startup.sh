@@ -5,18 +5,29 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Proxy bypass for company network (keeps localhost traffic local)
+export NO_PROXY="localhost,127.0.0.1,0.0.0.0,*.local"
+export no_proxy="localhost,127.0.0.1,0.0.0.0,*.local"
+
 echo -e "${BLUE}LinkedIn Interview Prep AI - Starting Services...${NC}"
+echo -e "${BLUE}Proxy bypass configured for localhost connections${NC}"
 echo ""
 
-# Check if backend virtual environment exists
-if [ ! -d "backend/.venv" ]; then
-    echo -e "${GREEN}Creating Python virtual environment...${NC}"
-    cd backend
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    cd ..
+# Remove existing Python virtual environment if it exists
+if [ -d "backend/.venv" ]; then
+    echo -e "${BLUE}Removing existing Python virtual environment...${NC}"
+    rm -rf backend/.venv
 fi
+
+
+# Check if backend virtual environment exists
+echo -e "${GREEN}Creating Python virtual environment...${NC}"
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ..
+
 
 # Start Backend
 echo -e "${GREEN}Starting FastAPI backend...${NC}"

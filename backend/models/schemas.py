@@ -51,6 +51,29 @@ class ResumeInfo(BaseModel):
     experience: List[str] = []
     summary: str = ""
 
+# Job Models
+class JobUploadRequest(BaseModel):
+    url: str = Field(..., description="LinkedIn job posting URL")
+
+class JobUploadResponse(BaseModel):
+    job_id: str
+    url: str
+    title: str
+    company: str
+    description_preview: str
+    post_date: Optional[str] = None
+    message: str
+
+class JobData(BaseModel):
+    job_id: str
+    url: str
+    title: str
+    company: str
+    description: str
+    post_date: Optional[str] = None
+    scraped_at: str
+    source: str = "linkedin"
+
 # Error Models
 class ErrorResponse(BaseModel):
     error: str

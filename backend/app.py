@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 from dotenv import load_dotenv
 
-from routes import interview, resume
+from routes import interview, resume, job
 
 # Load environment variables
 load_dotenv()
@@ -33,6 +33,7 @@ if not os.path.exists(UPLOAD_DIR):
 # Include routers
 app.include_router(interview.router, prefix="/api/interview", tags=["interview"])
 app.include_router(resume.router, prefix="/api/resume", tags=["resume"])
+app.include_router(job.router, prefix="/api/job", tags=["job"])
 
 @app.get("/")
 async def root():

@@ -68,13 +68,13 @@ const ResumeUpload = ({ onUpload }) => {
         {!file ? (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-linkedin-blue transition-colors"
+            className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-linkedin-blue transition-colors"
           >
-            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <p className="text-lg font-medium text-gray-700 mb-2">
+            <Upload className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+            <p className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
               Click to upload your resume
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               PDF or DOCX (max 10MB)
             </p>
             <input
@@ -91,8 +91,8 @@ const ResumeUpload = ({ onUpload }) => {
               <div className="flex items-center space-x-3">
                 <File className="h-8 w-8 text-linkedin-blue" />
                 <div>
-                  <p className="font-medium text-gray-900">{file.name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="font-medium text-gray-900 dark:text-white">{file.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {(file.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
@@ -102,7 +102,7 @@ const ResumeUpload = ({ onUpload }) => {
               ) : (
                 <button
                   onClick={handleRemove}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -131,12 +131,12 @@ const ResumeUpload = ({ onUpload }) => {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-4 p-4 bg-green-50 rounded-lg"
+                className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"
               >
-                <h4 className="font-semibold text-green-900 mb-2">
+                <h4 className="font-semibold text-green-900 dark:text-green-400 mb-2">
                   Resume Processed Successfully!
                 </h4>
-                <div className="text-sm text-green-800 space-y-1">
+                <div className="text-sm text-green-800 dark:text-green-300 space-y-1">
                   {extractedInfo.email && (
                     <p>📧 Email: {extractedInfo.email}</p>
                   )}

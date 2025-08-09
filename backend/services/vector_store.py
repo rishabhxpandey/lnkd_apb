@@ -129,4 +129,89 @@ class VectorStore:
     
     def get_all_resumes(self) -> List[str]:
         """Get all resume IDs"""
-        return list(self.metadata.keys()) 
+        return [k for k, v in self.metadata.items() if not k.startswith("job_")]
+    
+    def store_job(self, job_id: str, job_data: Dict[str, Any]):
+        """Store job description and metadata in vector store"""
+        
+        # Create searchable content from job data
+        searchable_content = f"""
+        {job_data.get('title', '')}
+        {job_data.get('company', '')}
+        {job_data.get('description', '')}
+        """.strip()
+        
+        # Get embedding for job content
+        embedding = self._get_embedding(searchable_content[:8000])  # Limit content length
+        
+        # Add to FAISS index
+        self.index.add(np.expand_dims(embedding, 0))
+        
+        # Store metadata with job_ prefix to distinguish from resumes
+        index_id = self.index.ntotal - 1
+        job_key = f"job_{job_id}"
+        self.metadata[job_key] = {
+            "index_id": index_id,
+            "content": searchable_content,
+            "job_data": job_data,
+            "type": "job_description"
+        }
+        
+        # Save to disk
+        self._save_index()
+    
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job by ID"""
+        job_key = f"job_{job_id}"
+        job_entry = self.metadata.get(job_key)
+        if job_entry:
+            return job_entry.get("job_data")
+        return None
+    
+    def search_similar_jobs(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
+        """Search for similar jobs based on query"""
+        
+        if self.index.ntotal == 0:
+            return []
+        
+        # Get query embedding
+        query_embedding = self._get_embedding(query)
+        
+        # Search in FAISS
+        distances, indices = self.index.search(
+            np.expand_dims(query_embedding, 0), 
+            min(k, self.index.ntotal)
+        )
+        
+        # Get job results only
+        results = []
+        for idx, distance in zip(indices[0], distances[0]):
+            if idx >= 0:  # Valid index
+                # Find job by index_id
+                for key, data in self.metadata.items():
+                    if key.startswith("job_") and data["index_id"] == idx:
+                        job_data = data["job_data"]
+                        results.append({
+                            "job_id": job_data["job_id"],
+                            "distance": float(distance),
+                            "title": job_data["title"],
+                            "company": job_data["company"],
+                            "description_preview": job_data["description"][:500],
+                            "job_data": job_data
+                        })
+                        break
+        
+        return results
+    
+    def get_all_jobs(self) -> List[str]:
+        """Get all job IDs"""
+        return [k.replace("job_", "") for k in self.metadata.keys() if k.startswith("job_")]
+    
+    def delete_job(self, job_id: str):
+        """Delete job from vector store"""
+        job_key = f"job_{job_id}"
+        if job_key in self.metadata:
+            # Note: FAISS doesn't support deletion, so we just remove metadata
+            # In production, you'd want to rebuild the index periodically
+            del self.metadata[job_key]
+            self._save_index() 

@@ -25,11 +25,11 @@ const RoleCard = ({ role, isSelected, onSelect }) => {
         <span className="text-5xl">{role.icon}</span>
       </div>
       
-      <h3 className="text-xl font-semibold mb-2 text-gray-900">
+      <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
         {role.title}
       </h3>
       
-      <p className="text-gray-600 mb-4">
+      <p className="text-gray-600 dark:text-gray-300 mb-4">
         {role.description}
       </p>
       
@@ -37,7 +37,7 @@ const RoleCard = ({ role, isSelected, onSelect }) => {
         {role.skills.map((skill, index) => (
           <span
             key={index}
-            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+            className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm"
           >
             {skill}
           </span>
