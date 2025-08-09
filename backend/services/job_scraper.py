@@ -8,7 +8,7 @@ import asyncio
 
 class JobScraper:
     def __init__(self):
-        self.timeout = 30000  # 30 seconds timeout - increased for better reliability
+        self.timeout = 10000  # 10 seconds timeout - reduced for faster failure
         self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     
     def _is_valid_linkedin_job_url(self, url: str) -> bool:
@@ -91,8 +91,12 @@ class JobScraper:
                 print(f"Navigating to job URL: {url}")
                 
                 # Navigate to the job URL with more conservative wait strategy
-                response = await page.goto(url, wait_until='load', timeout=self.timeout)
-                print(f"Page response status: {response.status if response else 'No response'}")
+                try:
+                    response = await page.goto(url, wait_until='load', timeout=self.timeout)
+                    print(f"Page response status: {response.status if response else 'No response'}")
+                except Exception as nav_error:
+                    print(f"Navigation timeout or error: {nav_error}")
+                    raise Exception(f"Failed to navigate to page: {nav_error}")
                 
                 # Wait for network to settle
                 await page.wait_for_load_state('networkidle', timeout=10000)
@@ -252,6 +256,8 @@ class JobScraper:
             except Exception as e:
                 print(f"Scraping error: {str(e)}")
                 try:
+                    if page:
+                        await page.close()
                     if browser:
                         await browser.close()
                 except Exception as close_error:

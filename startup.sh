@@ -27,7 +27,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cd ..
-
+clear
 
 # Start Backend
 echo -e "${GREEN}Starting FastAPI backend...${NC}"

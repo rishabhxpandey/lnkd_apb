@@ -60,7 +60,7 @@ const HomePage = () => {
 
     setIsStarting(true)
     try {
-      const response = await startInterview(selectedRole, resumeId)
+      const response = await startInterview(selectedRole, resumeId, jobId)
       navigate('/interview', { 
         state: { 
           sessionId: response.session_id,

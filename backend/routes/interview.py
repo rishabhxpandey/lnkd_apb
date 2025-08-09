@@ -20,12 +20,47 @@ sessions: Dict[str, Dict[str, Any]] = {}
 llm_service = LLMService()
 vector_store = VectorStore()
 
+@router.get("/debug/jobs")
+async def debug_jobs():
+    """Debug endpoint to see all stored jobs"""
+    all_jobs = vector_store.get_all_jobs()
+    jobs_detail = []
+    for job_id in all_jobs:
+        job_data = vector_store.get_job(job_id)
+        if job_data:
+            jobs_detail.append({
+                "job_id": job_id,
+                "title": job_data.get("title", ""),
+                "company": job_data.get("company", ""),
+                "description_preview": job_data.get("description", "")[:200]
+            })
+    
+    # Also check metadata directly
+    metadata_info = []
+    for key, value in vector_store.metadata.items():
+        if key.startswith("job_"):
+            metadata_info.append({
+                "key": key,
+                "has_job_data": "job_data" in value,
+                "index_id": value.get("index_id", "unknown")
+            })
+    
+    return {
+        "total_jobs": len(all_jobs),
+        "job_ids": all_jobs,
+        "jobs": jobs_detail,
+        "metadata_debug": metadata_info
+    }
+
 @router.get("/start", response_model=InterviewStartResponse)
 async def start_interview(
     role: str = Query(..., description="Role to interview for"),
-    resume_id: Optional[str] = Query(None, description="Resume ID for personalization")
+    resume_id: Optional[str] = Query(None, description="Resume ID for personalization"),
+    job_id: Optional[str] = Query(None, description="Job ID for job-specific questions")
 ):
     """Start a new interview session"""
+    
+    print(f"Starting interview - Role: {role}, Resume ID: {resume_id}, Job ID: {job_id}")
     
     # Validate role
     valid_roles = ["software_engineer", "product_manager", "data_scientist"]
@@ -42,11 +77,43 @@ async def start_interview(
         if resume_data:
             resume_context = resume_data.get("content", "")
     
+    # Get job context if provided
+    job_requirements = ""
+    skills = ""
+    if job_id:
+        print(f"Looking for job with ID: {job_id}")
+        # Debug: Show all available job IDs
+        all_jobs = vector_store.get_all_jobs()
+        print(f"Available job IDs: {all_jobs}")
+        
+        job_data = vector_store.get_job(job_id)
+        if job_data:
+            job_requirements = job_data.get("description", "")
+            # Extract skills from job title and description for more targeted questions
+            skills = f"{job_data.get('title', '')} at {job_data.get('company', '')}"
+            print(f"Found job: {skills}")
+            print(f"Job requirements length: {len(job_requirements)} characters")
+        else:
+            print(f"No job found with ID: {job_id}")
+            print("Trying to debug job storage...")
+            # Try different ID formats
+            alt_job_id = job_id.replace("linkedin_", "") if job_id.startswith("linkedin_") else f"linkedin_{job_id}"
+            alt_job_data = vector_store.get_job(alt_job_id)
+            if alt_job_data:
+                print(f"Found job with alternative ID: {alt_job_id}")
+                job_data = alt_job_data
+                job_requirements = job_data.get("description", "")
+                skills = f"{job_data.get('title', '')} at {job_data.get('company', '')}"
+    else:
+        print("No job ID provided")
+    
     # Generate first question
     first_question = await llm_service.generate_question(
         role=role,
         resume_context=resume_context,
-        question_number=1
+        question_number=1,
+        skills=skills,
+        job_requirements=job_requirements
     )
     
     # Store session
@@ -54,7 +121,10 @@ async def start_interview(
         "id": session_id,
         "role": role,
         "resume_id": resume_id,
+        "job_id": job_id,
         "resume_context": resume_context,
+        "job_requirements": job_requirements,
+        "skills": skills,
         "started_at": datetime.utcnow(),
         "questions": [first_question],
         "answers": [],
@@ -97,7 +167,9 @@ async def submit_answer(request: AnswerRequest):
         role=session["role"],
         resume_context=session["resume_context"],
         previous_qa=session["answers"],
-        answer=request.answer
+        answer=request.answer,
+        job_requirements=session.get("job_requirements", ""),
+        skills=session.get("skills", "")
     )
     
     # Add to questions

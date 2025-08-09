@@ -11,7 +11,7 @@ class InterviewStartResponse(BaseModel):
 
 class AnswerRequest(BaseModel):
     session_id: str
-    answer: str = Field(..., min_length=10, max_length=5000)
+    answer: str = Field(..., min_length=1, max_length=5000)
 
 class AnswerResponse(BaseModel):
     session_id: str

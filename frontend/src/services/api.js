@@ -30,10 +30,13 @@ export const getResume = async (resumeId) => {
 }
 
 // Interview APIs
-export const startInterview = async (role, resumeId = null) => {
+export const startInterview = async (role, resumeId = null, jobId = null) => {
   const params = { role }
   if (resumeId) {
     params.resume_id = resumeId
+  }
+  if (jobId) {
+    params.job_id = jobId
   }
   
   const response = await api.get('/interview/start', { params })

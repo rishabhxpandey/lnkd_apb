@@ -46,7 +46,13 @@ class LLMService:
     ) -> Dict[str, Any]:
         """Generate an interview question based on role and resume"""
         
+        print(f"Generating question - Role: {role}, Question: {question_number}")
+        print(f"Job requirements provided: {len(job_requirements)} chars")
+        print(f"Skills provided: {skills}")
+        print(f"Resume context provided: {len(resume_context)} chars")
+        
         if not self.client:
+            print("No OpenAI client available, using fallback")
             return self._get_fallback_question(role, question_number)
         
         # Load and render the Jinja2 template
@@ -58,6 +64,8 @@ class LLMService:
             skills=skills,
             job_requirements=job_requirements
         )
+        
+        print(f"Generated prompt preview: {user_prompt[:500]}...")
         
         system_prompt = "You are an expert interviewer. Follow the instructions carefully."
         
@@ -95,7 +103,9 @@ class LLMService:
         role: str,
         resume_context: str,
         previous_qa: List[Dict],
-        answer: str
+        answer: str,
+        job_requirements: str = "",
+        skills: str = ""
     ) -> Dict[str, Any]:
         """Generate a follow-up question based on the candidate's answer"""
         
@@ -115,15 +125,24 @@ class LLMService:
             for i, qa in enumerate(previous_qa[-3:])  # Last 3 Q&As for context
         ])
         
+        # Include job context if available
+        job_context = ""
+        if job_requirements or skills:
+            job_context = f"\n\nJob Context:"
+            if skills:
+                job_context += f"\nPosition: {skills}"
+            if job_requirements:
+                job_context += f"\nJob Requirements: {job_requirements[:500]}..."
+        
         user_prompt = f"""Based on this interview so far, generate a follow-up question.
         
         Role: {role.replace('_', ' ')}
         Recent Q&A:
         {qa_history}
         
-        Latest answer: {answer}
+        Latest answer: {answer}{job_context}
         
-        Generate a thoughtful follow-up that explores their answer deeper or transitions to a new relevant topic.
+        Generate a thoughtful follow-up that explores their answer deeper or transitions to a new relevant topic. If job context is provided, ensure questions align with the specific role requirements.
         
         Return a JSON object with:
         - question: The follow-up question

@@ -12,7 +12,11 @@ load_dotenv()
 
 class VectorStore:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        try:
+            self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        except Exception as e:
+            print(f"Warning: Could not initialize OpenAI client: {e}")
+            self.client = None
         self.embedding_model = "text-embedding-ada-002"
         self.dimension = 1536  # OpenAI embedding dimension
         
@@ -51,6 +55,10 @@ class VectorStore:
     
     def _get_embedding(self, text: str) -> np.ndarray:
         """Get embedding for text using OpenAI"""
+        if not self.client:
+            print("No OpenAI client available for embeddings")
+            return np.zeros(self.dimension, dtype=np.float32)
+            
         try:
             response = self.client.embeddings.create(
                 input=text,
@@ -59,8 +67,8 @@ class VectorStore:
             return np.array(response.data[0].embedding, dtype=np.float32)
         except Exception as e:
             print(f"Error getting embedding: {e}")
-            # Return random embedding as fallback
-            return np.random.rand(self.dimension).astype(np.float32)
+            # Return zero embedding as fallback when API is blocked
+            return np.zeros(self.dimension, dtype=np.float32)
     
     def store_resume(self, resume_id: str, content: str, metadata: Dict[str, Any]):
         """Store resume content and metadata in vector store"""
@@ -134,31 +142,44 @@ class VectorStore:
     def store_job(self, job_id: str, job_data: Dict[str, Any]):
         """Store job description and metadata in vector store"""
         
-        # Create searchable content from job data
-        searchable_content = f"""
-        {job_data.get('title', '')}
-        {job_data.get('company', '')}
-        {job_data.get('description', '')}
-        """.strip()
-        
-        # Get embedding for job content
-        embedding = self._get_embedding(searchable_content[:8000])  # Limit content length
-        
-        # Add to FAISS index
-        self.index.add(np.expand_dims(embedding, 0))
-        
-        # Store metadata with job_ prefix to distinguish from resumes
-        index_id = self.index.ntotal - 1
-        job_key = f"job_{job_id}"
-        self.metadata[job_key] = {
-            "index_id": index_id,
-            "content": searchable_content,
-            "job_data": job_data,
-            "type": "job_description"
-        }
-        
-        # Save to disk
-        self._save_index()
+        try:
+            # Create searchable content from job data
+            searchable_content = f"""
+            {job_data.get('title', '')}
+            {job_data.get('company', '')}
+            {job_data.get('description', '')}
+            """.strip()
+            
+            # Try to get embedding for job content
+            try:
+                embedding = self._get_embedding(searchable_content[:8000])  # Limit content length
+                
+                # Add to FAISS index
+                self.index.add(np.expand_dims(embedding, 0))
+                index_id = self.index.ntotal - 1
+                print(f"Successfully created embedding for job {job_id}")
+            except Exception as embed_error:
+                print(f"Failed to create embedding for job {job_id}: {embed_error}")
+                # Store without FAISS index when embeddings fail
+                index_id = -1  # Special value indicating no embedding
+            
+            # Store metadata with job_ prefix to distinguish from resumes
+            job_key = f"job_{job_id}"
+            self.metadata[job_key] = {
+                "index_id": index_id,
+                "content": searchable_content,
+                "job_data": job_data,
+                "type": "job_description"
+            }
+            
+            print(f"Stored job metadata for {job_id} with index_id: {index_id}")
+            
+            # Save to disk
+            self._save_index()
+            
+        except Exception as e:
+            print(f"Failed to store job {job_id}: {e}")
+            raise e
     
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job by ID"""
